@@ -1,23 +1,20 @@
 package fytask
 
 import (
-	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sync"
 )
 
-type TaskFn func() error
+type TaskFn func(ctx context.Context) error
 
 type Runner struct {
 	tasks map[string]TaskFn
 	mu    sync.Mutex
 }
-
-var defaultRunner = New()
 
 func New() *Runner {
 	return &Runner{
@@ -31,98 +28,54 @@ func (r *Runner) Task(name string, fn TaskFn) {
 	r.tasks[name] = fn
 }
 
-func (r *Runner) Run(name string) {
+func (r *Runner) Run(ctx context.Context, name string) error {
 	task, ok := r.tasks[name]
 	if !ok {
-		panic(fmt.Sprintf("task not found: %s", name))
+		return fmt.Errorf("task '%s' not found", name)
 	}
-	if err := task(); err != nil {
-		panic(fmt.Sprintf("task %s failed: %v", name, err))
+	return task(ctx)
+}
+
+func (r *Runner) List() {
+	fmt.Println("Available tasks:")
+	for name := range r.tasks {
+		fmt.Println("  ", name)
 	}
 }
 
-func Task(name string, fn TaskFn) {
-	defaultRunner.Task(name, fn)
-}
-
-func Run(name string) {
-	defaultRunner.Run(name)
-}
-
-func Series(names ...string) TaskFn {
-	return func() error {
-		for _, n := range names {
-			defaultRunner.Run(n)
+func Series(tasks ...string) TaskFn {
+	return func(ctx context.Context) error {
+		for _, t := range tasks {
+			if err := defaultRunner.Run(ctx, t); err != nil {
+				return err
+			}
 		}
 		return nil
 	}
 }
 
-func Parallel(names ...string) TaskFn {
-	return func() error {
+func Parallel(tasks ...string) TaskFn {
+	return func(ctx context.Context) error {
 		var wg sync.WaitGroup
-		errs := make(chan error, len(names))
+		errs := make(chan error, 1)
 
-		for _, n := range names {
+		for _, t := range tasks {
 			wg.Add(1)
-
 			go func(taskName string) {
 				defer wg.Done()
-				task, ok := defaultRunner.tasks[taskName]
-				if !ok {
-					errs <- fmt.Errorf("task not found: %s", taskName)
-					return
+				if err := defaultRunner.Run(ctx, taskName); err != nil {
+					select {
+					case errs <- err:
+					default:
+					}
 				}
-				if err := task(); err != nil {
-					errs <- fmt.Errorf("task %s failed: %v", taskName, err)
-				}
-			}(n)
+			}(t)
 		}
 
 		wg.Wait()
 		close(errs)
-
-		if len(errs) > 0 {
-			return <-errs
-		}
-		return nil
+		return <-errs
 	}
-}
-
-// no output
-func Sh(cmd string, args ...string) error {
-	c := exec.Command(cmd, args...)
-	c.Stdout = os.Stdout
-	c.Stderr = os.Stderr
-	return c.Run()
-}
-
-// returns stdout as string.
-func ShOut(cmd string, args ...string) string {
-	var out bytes.Buffer
-
-	c := exec.Command(cmd, args...)
-	c.Stdout = &out
-	c.Stderr = os.Stderr
-
-	if err := c.Run(); err != nil {
-		panic(err)
-	}
-	return out.String()
-}
-
-func MustSh(cmd string, args ...string) {
-	if err := Sh(cmd, args...); err != nil {
-		panic(err)
-	}
-}
-
-func Log(v ...any) {
-	fmt.Println(v...)
-}
-
-func Logf(format string, v ...any) {
-	fmt.Printf(format+"\n", v...)
 }
 
 func Copy(src, dst string) error {
@@ -146,18 +99,30 @@ func Copy(src, dst string) error {
 	return err
 }
 
-func Rm(path string) error {
-	return os.RemoveAll(path)
+func If(condition bool, task string) TaskFn {
+	return func(ctx context.Context) error {
+		if condition {
+			return defaultRunner.Run(ctx, task)
+		}
+		return nil
+	}
 }
 
-func Mkdir(path string) error {
-	return os.MkdirAll(path, 0755)
+func Unless(condition bool, task string) TaskFn {
+	return If(!condition, task)
 }
 
-func Env(key string) string {
-	return os.Getenv(key)
+func Exists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
-func SetEnv(key, val string) {
-	os.Setenv(key, val)
+var defaultRunner = New()
+
+func Task(name string, fn TaskFn) {
+	defaultRunner.Task(name, fn)
+}
+
+func Run(ctx context.Context, name string) error {
+	return defaultRunner.Run(ctx, name)
 }
