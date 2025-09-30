@@ -41,7 +41,7 @@ func ShOut(ctx context.Context, command string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return string(out), nil
+	return out, nil
 }
 
 func parseCommand(cmd string) (string, []string) {
