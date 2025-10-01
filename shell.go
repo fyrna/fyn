@@ -5,175 +5,166 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
+	"strings"
 )
 
-// ShellEnv executes a command with environment variables, streaming stdout and stderr.
-func ShellEnv(
-	ctx context.Context,
-	env []string,
-	cmd string,
-	args ...string,
-) error {
-	c := exec.CommandContext(ctx, cmd, args...)
-	c.Stdout = os.Stdout
-	c.Stderr = os.Stderr
-
-	if env != nil {
-		c.Env = append(os.Environ(), env...)
-	}
-
-	if err := c.Run(); err != nil {
-		return fmt.Errorf("shell: %w", err)
-	}
-	return nil
+type ShellOptions struct {
+	Env      []string
+	Silent   bool
+	Capture  bool   // true = capture command output
+	Combined bool   // true = capture both stdout and stderr together
+	Shell    string // override shell (e.g. "bash", "sh", "zsh")
 }
 
-// ShellOutEnv executes a command with environment variables and returns its output.
-func ShellOutEnv(
-	ctx context.Context,
-	env []string,
-	cmd string,
-	args ...string,
-) (string, error) {
-	c := exec.CommandContext(ctx, cmd, args...)
-
-	if env != nil {
-		c.Env = append(os.Environ(), env...)
+// Execute - main function that handles all use cases
+func Execute(ctx context.Context, command string, opts *ShellOptions) (string, error) {
+	if opts == nil {
+		opts = &ShellOptions{}
 	}
 
-	out, err := c.Output()
+	// detect if shell is needed (redirection, pipes, etc.)
+	needsShell := strings.ContainsAny(command, "><|&;{}*?[]$`()")
+
+	var cmd *exec.Cmd
+	var err error
+
+	if needsShell || opts.Shell != "" {
+		shell := opts.Shell
+
+		// default: try bash, fallback to sh
+		if shell == "" {
+			if _, err := exec.LookPath("bash"); err == nil {
+				shell = "bash"
+			} else {
+				shell = "sh"
+			}
+		}
+
+		cmd = exec.CommandContext(ctx, shell, "-c", command)
+	} else {
+		// direct exec (no shell involved)
+		parts, err := splitCommand(command)
+		if err != nil {
+			return "", fmt.Errorf("execute: %w", err)
+		}
+		if len(parts) == 0 {
+			return "", nil
+		}
+		cmd = exec.CommandContext(ctx, parts[0], parts[1:]...)
+	}
+
+	// set environment variables if provided
+	if opts.Env != nil {
+		cmd.Env = append(os.Environ(), opts.Env...)
+	}
+
+	var output []byte
+	if opts.Capture {
+		if opts.Combined {
+			output, err = cmd.CombinedOutput()
+		} else {
+			output, err = cmd.Output()
+		}
+	} else {
+		if !opts.Silent {
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+		}
+		err = cmd.Run()
+	}
+
 	if err != nil {
-		return "", fmt.Errorf("shellout: %w", err)
+		return "", fmt.Errorf("execute %s: %w", command, err)
 	}
-	return string(out), nil
+	return string(output), nil
 }
 
-// ShellCombinedOutEnv executes a command with environment variables and returns both stdout and stderr combined.
-func ShellCombinedOutEnv(
-	ctx context.Context,
-	env []string,
-	cmd string,
-	args ...string,
-) (string, error) {
-	c := exec.CommandContext(ctx, cmd, args...)
-
-	if env != nil {
-		c.Env = append(os.Environ(), env...)
-	}
-
-	out, err := c.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("shellcombined: %w", err)
-	}
-	return string(out), nil
+// Shell - run a command with env vars + stream output to stdout/stderr
+func Shell(ctx context.Context, env []string, cmd string, args ...string) error {
+	_, err := Execute(ctx, buildCommand(cmd, args), &ShellOptions{Env: env})
+	return err
 }
 
-// SilentEnv executes a command with environment variables without capturing any output.
-func SilentEnv(
-	ctx context.Context,
-	env []string,
-	cmd string,
-	args ...string,
-) error {
-	c := exec.CommandContext(ctx, cmd, args...)
-	c.Stdout = nil
-	c.Stderr = nil
-
-	if env != nil {
-		c.Env = append(os.Environ(), env...)
-	}
-
-	if err := c.Run(); err != nil {
-		return fmt.Errorf("silent: %w", err)
-	}
-	return nil
+// ShellOut - run a command with env vars and return output (stdout only)
+func ShellOut(ctx context.Context, env []string, cmd string, args ...string) (string, error) {
+	return Execute(ctx, buildCommand(cmd, args), &ShellOptions{
+		Env:     env,
+		Capture: true,
+	})
 }
 
-// Shell executes a command with stdout and stderr streaming.
-func Shell(ctx context.Context, cmd string, args ...string) error {
-	return ShellEnv(ctx, nil, cmd, args...)
+// ShellCombinedOut - run a command with env vars and return combined output (stdout + stderr)
+func ShellCombinedOut(ctx context.Context, env []string, cmd string, args ...string) (string, error) {
+	return Execute(ctx, buildCommand(cmd, args), &ShellOptions{
+		Env:      env,
+		Capture:  true,
+		Combined: true,
+	})
 }
 
-// ShellOut executes a command and returns its output.
-func ShellOut(ctx context.Context, cmd string, args ...string) (string, error) {
-	return ShellOutEnv(ctx, nil, cmd, args...)
+// Silent - run a command with env vars, no output printed
+func Silent(ctx context.Context, env []string, cmd string, args ...string) error {
+	_, err := Execute(ctx, buildCommand(cmd, args), &ShellOptions{
+		Env:    env,
+		Silent: true,
+	})
+	return err
 }
 
-// ShellCombinedOut executes a command and returns both stdout and stderr combined.
-func ShellCombinedOut(ctx context.Context, cmd string, args ...string) (string, error) {
-	return ShellCombinedOutEnv(ctx, nil, cmd, args...)
-}
-
-// Silent executes a command without capturing any output.
-func Silent(ctx context.Context, command string) error {
-	parts, err := splitCommand(command)
-	if err != nil {
-		return fmt.Errorf("silent: %w", err)
-	}
-	if len(parts) == 0 {
-		return nil
-	}
-
-	return SilentEnv(ctx, nil, parts[0], parts[1:]...)
-}
-
-// Sh is a convenience wrapper for executing shell commands from a string.
+// Sh - convenience wrapper for a raw string command
 func Sh(ctx context.Context, command string) error {
-	parts, err := splitCommand(command)
-	if err != nil {
-		return fmt.Errorf("sh: %w", err)
-	}
-	if len(parts) == 0 {
-		return nil
-	}
-	return ShellEnv(ctx, nil, parts[0], parts[1:]...)
+	_, err := Execute(ctx, command, &ShellOptions{})
+	return err
 }
 
-// ShEnv is a convenience wrapper for executing shell commands from a string with environment variables.
-func ShEnv(
-	ctx context.Context,
-	env []string,
-	command string,
-) error {
-	parts, err := splitCommand(command)
-	if err != nil {
-		return fmt.Errorf("shenv: %w", err)
-	}
-	if len(parts) == 0 {
-		return nil
-	}
-	return ShellEnv(ctx, env, parts[0], parts[1:]...)
+// ShEnv - convenience wrapper for a raw string command with env vars
+func ShEnv(ctx context.Context, env []string, command string) error {
+	_, err := Execute(ctx, command, &ShellOptions{Env: env})
+	return err
 }
 
-// ShOut executes a shell command from a string and returns its output.
+// ShOut - convenience wrapper for a raw string command that returns output
 func ShOut(ctx context.Context, command string) (string, error) {
-	parts, err := splitCommand(command)
-	if err != nil {
-		return "", fmt.Errorf("shout: %w", err)
-	}
-	if len(parts) == 0 {
-		return "", nil
-	}
-	return ShellOutEnv(ctx, nil, parts[0], parts[1:]...)
+	return Execute(ctx, command, &ShellOptions{
+		Capture: true,
+	})
 }
 
-// ShOutEnv executes a shell command from a string with environment variables and returns its output.
-func ShOutEnv(
-	ctx context.Context,
-	env []string,
-	command string,
-) (string, error) {
-	parts, err := splitCommand(command)
-	if err != nil {
-		return "", fmt.Errorf("shoutenv: %w", err)
-	}
-	if len(parts) == 0 {
-		return "", nil
-	}
-	return ShellOutEnv(ctx, env, parts[0], parts[1:]...)
+// ShOutEnv - convenience wrapper for a raw string command with env vars that returns output
+func ShOutEnv(ctx context.Context, env []string, command string) (string, error) {
+	return Execute(ctx, command, &ShellOptions{
+		Env:     env,
+		Capture: true,
+	})
 }
 
-// splitCommand splits a command string into arguments, respecting quotes and escape sequences.
+func buildCommand(cmd string, args []string) string {
+	var result strings.Builder
+
+	// quote command if needed
+	if strings.ContainsAny(cmd, " \t\n\"'") {
+		result.WriteString(strconv.Quote(cmd))
+	} else {
+		result.WriteString(cmd)
+	}
+
+	// quote each argument if needed
+	for _, arg := range args {
+		result.WriteString(" ")
+		if strings.ContainsAny(arg, " \t\n\"'") {
+			// use single quotes for better shell compatibility
+			result.WriteString("'")
+			result.WriteString(strings.ReplaceAll(arg, "'", "'\"'\"'"))
+			result.WriteString("'")
+		} else {
+			result.WriteString(arg)
+		}
+	}
+
+	return result.String()
+}
+
 func splitCommand(input string) ([]string, error) {
 	var args []string
 	var current []rune
@@ -210,6 +201,7 @@ func splitCommand(input string) ([]string, error) {
 	if inSingle || inDouble {
 		return nil, fmt.Errorf("unmatched quotes in command: %s", input)
 	}
+
 	if escape {
 		return nil, fmt.Errorf("unfinished escape sequence in command: %s", input)
 	}
