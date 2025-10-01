@@ -36,6 +36,11 @@ func (r *Runner) Run(ctx context.Context, name string) error {
 	return task(ctx)
 }
 
+// run with context.Background
+func (r *Runner) Rawr(name string) error {
+	return r.Run(context.Background(), name)
+}
+
 func (r *Runner) List() {
 	fmt.Println("Available tasks:")
 	for name := range r.tasks {
