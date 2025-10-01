@@ -20,6 +20,20 @@ func ShellOut(ctx context.Context, cmd string, args ...string) (string, error) {
 	return string(out), err
 }
 
+func ShellEnv(
+	ctx context.Context,
+	env []string,
+	cmd string,
+	args ...string,
+) error {
+	c := exec.CommandContext(ctx, cmd, args...)
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+	c.Env = append(os.Environ(), env...)
+
+	return c.Run()
+}
+
 func Silent(ctx context.Context, command string) error {
 	parts, err := splitCommand(command)
 	if err != nil {
