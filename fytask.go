@@ -2,56 +2,168 @@ package fytask
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"io"
-	"os"
-	"path/filepath"
+	"slices"
+	"strings"
 	"sync"
 )
 
+var (
+	ErrTaskNotFound       = errors.New("task not found")
+	ErrCircularDependency = errors.New("circular dependency detected")
+)
+
+type Errors []error
+
+func (e Errors) Error() string {
+	if len(e) == 0 {
+		return ""
+	}
+	if len(e) == 1 {
+		return e[0].Error()
+	}
+
+	var sb strings.Builder
+	sb.WriteString("errors:\n")
+
+	for i, err := range e {
+		sb.WriteString(fmt.Sprintf(" %d. %s\n", i+1, err))
+	}
+
+	return sb.String()
+}
+
+func (e Errors) Unwrap() []error {
+	return []error(e)
+}
+
 type TaskFn func(ctx context.Context) error
 
+type TaskInfo struct {
+	Name string
+	Desc string
+	Deps []string
+	Func TaskFn
+}
+
 type Runner struct {
-	tasks map[string]TaskFn
 	mu    sync.Mutex
+	tasks map[string]*TaskInfo
 }
 
 func New() *Runner {
 	return &Runner{
-		tasks: make(map[string]TaskFn),
+		tasks: make(map[string]*TaskInfo),
 	}
 }
 
 func (r *Runner) Task(name string, fn TaskFn) {
+	r.AddTask(name, "", nil, fn)
+}
+
+func (r *Runner) AddTask(name, desc string, deps []string, fn TaskFn) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.tasks[name] = fn
+
+	r.tasks[name] = &TaskInfo{
+		Name: name,
+		Desc: desc,
+		Deps: deps,
+		Func: fn,
+	}
+}
+
+func (r *Runner) Validate() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	var errs Errors
+
+	// check circular deps
+	for t := range r.tasks {
+		if err := r.detectCircular(t, nil); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	// check missing deps
+	for name, info := range r.tasks {
+		for _, dep := range info.Deps {
+			if _, ok := r.tasks[dep]; !ok {
+				errs = append(errs, fmt.Errorf("task '%s': dependency '%s' not found", name, dep))
+			}
+		}
+	}
+
+	if len(errs) > 0 {
+		return errs
+	}
+
+	return nil
 }
 
 func (r *Runner) Run(ctx context.Context, name string) error {
+	r.mu.Lock()
 	task, ok := r.tasks[name]
+	r.mu.Unlock()
+
 	if !ok {
-		return fmt.Errorf("task '%s' not found", name)
+		return fmt.Errorf("%w: '%s'", ErrTaskNotFound, name)
 	}
-	return task(ctx)
+
+	// run deps first
+	for _, dep := range task.Deps {
+		if err := r.Run(ctx, dep); err != nil {
+			return fmt.Errorf("dependency '%s' failed: %w", dep, err)
+		}
+	}
+
+	return task.Func(ctx)
 }
 
-// run with context.Background
 func (r *Runner) Rawr(name string) error {
 	return r.Run(context.Background(), name)
 }
 
-func (r *Runner) List() {
-	fmt.Println("Available tasks:")
-	for name := range r.tasks {
-		fmt.Println("  ", name)
+func (r *Runner) ListTasks() []TaskInfo {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	res := make([]TaskInfo, 0, len(r.tasks))
+
+	for _, info := range r.tasks {
+		res = append(res, *info)
 	}
+
+	return res
 }
 
-func Series(tasks ...string) TaskFn {
+func (r *Runner) detectCircular(current string, path []string) error {
+	if slices.Contains(path, current) {
+		return fmt.Errorf("%w: %s", ErrCircularDependency,
+			strings.Join(append(path, current), " -> "))
+	}
+
+	task, ok := r.tasks[current]
+	if !ok {
+		return nil
+	}
+
+	newPath := append(path, current)
+	for _, dep := range task.Deps {
+		if err := r.detectCircular(dep, newPath); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func Series(r *Runner, tasks ...string) TaskFn {
 	return func(ctx context.Context) error {
 		for _, t := range tasks {
-			if err := defaultRunner.Run(ctx, t); err != nil {
+			if err := r.Run(ctx, t); err != nil {
 				return err
 			}
 		}
@@ -59,75 +171,30 @@ func Series(tasks ...string) TaskFn {
 	}
 }
 
-func Parallel(tasks ...string) TaskFn {
+func Parallel(r *Runner, tasks ...string) TaskFn {
 	return func(ctx context.Context) error {
 		var wg sync.WaitGroup
-		errs := make(chan error, 1)
+		var mu sync.Mutex
+		var errs Errors
 
 		for _, t := range tasks {
 			wg.Add(1)
 			go func(taskName string) {
 				defer wg.Done()
-				if err := defaultRunner.Run(ctx, taskName); err != nil {
-					select {
-					case errs <- err:
-					default:
-					}
+				if err := r.Run(ctx, taskName); err != nil {
+					mu.Lock()
+					errs = append(errs, fmt.Errorf("task %s: %w", taskName, err))
+					mu.Unlock()
 				}
 			}(t)
 		}
 
 		wg.Wait()
-		close(errs)
-		return <-errs
-	}
-}
 
-func Copy(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
-		return err
-	}
-
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	_, err = io.Copy(out, in)
-	return err
-}
-
-func If(condition bool, task string) TaskFn {
-	return func(ctx context.Context) error {
-		if condition {
-			return defaultRunner.Run(ctx, task)
+		if len(errs) > 0 {
+			return errs
 		}
+
 		return nil
 	}
-}
-
-func Unless(condition bool, task string) TaskFn {
-	return If(!condition, task)
-}
-
-func Exists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
-}
-
-var defaultRunner = New()
-
-func Task(name string, fn TaskFn) {
-	defaultRunner.Task(name, fn)
-}
-
-func Run(ctx context.Context, name string) error {
-	return defaultRunner.Run(ctx, name)
 }

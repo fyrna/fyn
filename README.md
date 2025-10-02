@@ -19,16 +19,20 @@ import (
 func main() {
 	t := fy.New()
 
-	t.Task("print", nil)
-	t.Task("miaw", nil)
-	t.Task("build", func(ctx context.Context) error {
-		fy.Shell(ctx, "echo", "miaw :3")
-		fy.Sh(ctx, `echo i try new abstraction`)
+	t.Task("file", func(ctx context.Context) error {
+		fy.Sh(ctx, `echo "miaw" > file.txt`)
+		fy.Sh(ctx, "cat file.txt")
+		fy.Sh(ctx, "rm -f file.txt")
+
+		fy.Execute(ctx,
+			"for i in (seq 1 3); echo $i; end",
+			&fy.ShellOptions{
+				Shell: "fish",
+			})
 
 		return nil
-	})
+  })
 
-	t.Run(context.Background(), "build")
-	t.List()
+	t.Run(context.Background(), "file")
 }
 ```
