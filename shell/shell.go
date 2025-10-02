@@ -1,4 +1,4 @@
-package fytask
+package shell
 
 import (
 	"context"
@@ -17,8 +17,15 @@ type ShellOptions struct {
 	Shell    string // override shell (e.g. "bash", "sh", "zsh")
 }
 
-// Execute - main function that handles all use cases
-func Execute(ctx context.Context, command string, opts *ShellOptions) (string, error) {
+// go dont have "pub" keyword, and basically it is illegal to use dollar sign. :(
+// i was want something like bun does $`echo rawrrr`
+var S = func(cmd string) error {
+	_, err := Exec(context.Background(), cmd, &ShellOptions{})
+	return err
+}
+
+// Exec - main function that handles all use cases
+func Exec(ctx context.Context, command string, opts *ShellOptions) (string, error) {
 	if opts == nil {
 		opts = &ShellOptions{}
 	}
@@ -82,13 +89,13 @@ func Execute(ctx context.Context, command string, opts *ShellOptions) (string, e
 
 // Shell - run a command with env vars + stream output to stdout/stderr
 func Shell(ctx context.Context, env []string, cmd string, args ...string) error {
-	_, err := Execute(ctx, buildCommand(cmd, args), &ShellOptions{Env: env})
+	_, err := Exec(ctx, buildCommand(cmd, args), &ShellOptions{Env: env})
 	return err
 }
 
 // ShellOut - run a command with env vars and return output (stdout only)
 func ShellOut(ctx context.Context, env []string, cmd string, args ...string) (string, error) {
-	return Execute(ctx, buildCommand(cmd, args), &ShellOptions{
+	return Exec(ctx, buildCommand(cmd, args), &ShellOptions{
 		Env:     env,
 		Capture: true,
 	})
@@ -96,7 +103,7 @@ func ShellOut(ctx context.Context, env []string, cmd string, args ...string) (st
 
 // ShellCombinedOut - run a command with env vars and return combined output (stdout + stderr)
 func ShellCombinedOut(ctx context.Context, env []string, cmd string, args ...string) (string, error) {
-	return Execute(ctx, buildCommand(cmd, args), &ShellOptions{
+	return Exec(ctx, buildCommand(cmd, args), &ShellOptions{
 		Env:      env,
 		Capture:  true,
 		Combined: true,
@@ -105,7 +112,7 @@ func ShellCombinedOut(ctx context.Context, env []string, cmd string, args ...str
 
 // Silent - run a command with env vars, no output printed
 func Silent(ctx context.Context, env []string, cmd string, args ...string) error {
-	_, err := Execute(ctx, buildCommand(cmd, args), &ShellOptions{
+	_, err := Exec(ctx, buildCommand(cmd, args), &ShellOptions{
 		Env:    env,
 		Silent: true,
 	})
@@ -114,26 +121,26 @@ func Silent(ctx context.Context, env []string, cmd string, args ...string) error
 
 // Sh - convenience wrapper for a raw string command
 func Sh(ctx context.Context, command string) error {
-	_, err := Execute(ctx, command, &ShellOptions{})
+	_, err := Exec(ctx, command, &ShellOptions{})
 	return err
 }
 
 // ShEnv - convenience wrapper for a raw string command with env vars
 func ShEnv(ctx context.Context, env []string, command string) error {
-	_, err := Execute(ctx, command, &ShellOptions{Env: env})
+	_, err := Exec(ctx, command, &ShellOptions{Env: env})
 	return err
 }
 
 // ShOut - convenience wrapper for a raw string command that returns output
 func ShOut(ctx context.Context, command string) (string, error) {
-	return Execute(ctx, command, &ShellOptions{
+	return Exec(ctx, command, &ShellOptions{
 		Capture: true,
 	})
 }
 
 // ShOutEnv - convenience wrapper for a raw string command with env vars that returns output
 func ShOutEnv(ctx context.Context, env []string, command string) (string, error) {
-	return Execute(ctx, command, &ShellOptions{
+	return Exec(ctx, command, &ShellOptions{
 		Env:     env,
 		Capture: true,
 	})
