@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 )
 
@@ -87,38 +86,6 @@ func Exec(ctx context.Context, command string, opts *ShellOptions) (string, erro
 	return string(output), nil
 }
 
-// Shell - run a command with env vars + stream output to stdout/stderr
-func Shell(ctx context.Context, env []string, cmd string, args ...string) error {
-	_, err := Exec(ctx, buildCommand(cmd, args), &ShellOptions{Env: env})
-	return err
-}
-
-// ShellOut - run a command with env vars and return output (stdout only)
-func ShellOut(ctx context.Context, env []string, cmd string, args ...string) (string, error) {
-	return Exec(ctx, buildCommand(cmd, args), &ShellOptions{
-		Env:     env,
-		Capture: true,
-	})
-}
-
-// ShellCombinedOut - run a command with env vars and return combined output (stdout + stderr)
-func ShellCombinedOut(ctx context.Context, env []string, cmd string, args ...string) (string, error) {
-	return Exec(ctx, buildCommand(cmd, args), &ShellOptions{
-		Env:      env,
-		Capture:  true,
-		Combined: true,
-	})
-}
-
-// Silent - run a command with env vars, no output printed
-func Silent(ctx context.Context, env []string, cmd string, args ...string) error {
-	_, err := Exec(ctx, buildCommand(cmd, args), &ShellOptions{
-		Env:    env,
-		Silent: true,
-	})
-	return err
-}
-
 // Sh - convenience wrapper for a raw string command
 func Sh(ctx context.Context, command string) error {
 	_, err := Exec(ctx, command, &ShellOptions{})
@@ -146,30 +113,22 @@ func ShOutEnv(ctx context.Context, env []string, command string) (string, error)
 	})
 }
 
-func buildCommand(cmd string, args []string) string {
-	var result strings.Builder
+// ShCombinedOut - run a command with env vars and return combined output (stdout + stderr)
+func ShCombinedOut(ctx context.Context, env []string, cmd string, args ...string) (string, error) {
+	return Exec(ctx, cmd, &ShellOptions{
+		Env:      env,
+		Capture:  true,
+		Combined: true,
+	})
+}
 
-	// quote command if needed
-	if strings.ContainsAny(cmd, " \t\n\"'") {
-		result.WriteString(strconv.Quote(cmd))
-	} else {
-		result.WriteString(cmd)
-	}
-
-	// quote each argument if needed
-	for _, arg := range args {
-		result.WriteString(" ")
-		if strings.ContainsAny(arg, " \t\n\"'") {
-			// use single quotes for better shell compatibility
-			result.WriteString("'")
-			result.WriteString(strings.ReplaceAll(arg, "'", "'\"'\"'"))
-			result.WriteString("'")
-		} else {
-			result.WriteString(arg)
-		}
-	}
-
-	return result.String()
+// Silent - run a command with env vars, no output printed
+func Silent(ctx context.Context, env []string, cmd string, args ...string) error {
+	_, err := Exec(ctx, cmd, &ShellOptions{
+		Env:    env,
+		Silent: true,
+	})
+	return err
 }
 
 func splitCommand(input string) ([]string, error) {
