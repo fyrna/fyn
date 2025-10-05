@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-type ShellOptions struct {
+type Options struct {
 	Env      []string
 	Silent   bool
 	Capture  bool   // true = capture command output
@@ -19,14 +19,14 @@ type ShellOptions struct {
 // go dont have "pub" keyword, and basically it is illegal to use dollar sign. :(
 // i was want something like bun does $`echo rawrrr`
 var S = func(cmd string) error {
-	_, err := Exec(context.Background(), cmd, &ShellOptions{})
+	_, err := Exec(context.Background(), cmd, &Options{})
 	return err
 }
 
 // Exec - main function that handles all use cases
-func Exec(ctx context.Context, command string, opts *ShellOptions) (string, error) {
+func Exec(ctx context.Context, command string, opts *Options) (string, error) {
 	if opts == nil {
-		opts = &ShellOptions{}
+		opts = &Options{}
 	}
 
 	// detect if shell is needed (redirection, pipes, etc.)
@@ -88,26 +88,26 @@ func Exec(ctx context.Context, command string, opts *ShellOptions) (string, erro
 
 // Sh - convenience wrapper for a raw string command
 func Sh(ctx context.Context, command string) error {
-	_, err := Exec(ctx, command, &ShellOptions{})
+	_, err := Exec(ctx, command, &Options{})
 	return err
 }
 
 // ShEnv - convenience wrapper for a raw string command with env vars
 func ShEnv(ctx context.Context, env []string, command string) error {
-	_, err := Exec(ctx, command, &ShellOptions{Env: env})
+	_, err := Exec(ctx, command, &Options{Env: env})
 	return err
 }
 
 // ShOut - convenience wrapper for a raw string command that returns output
 func ShOut(ctx context.Context, command string) (string, error) {
-	return Exec(ctx, command, &ShellOptions{
+	return Exec(ctx, command, &Options{
 		Capture: true,
 	})
 }
 
 // ShOutEnv - convenience wrapper for a raw string command with env vars that returns output
 func ShOutEnv(ctx context.Context, env []string, command string) (string, error) {
-	return Exec(ctx, command, &ShellOptions{
+	return Exec(ctx, command, &Options{
 		Env:     env,
 		Capture: true,
 	})
@@ -115,7 +115,7 @@ func ShOutEnv(ctx context.Context, env []string, command string) (string, error)
 
 // ShCombinedOut - run a command with env vars and return combined output (stdout + stderr)
 func ShCombinedOut(ctx context.Context, env []string, cmd string, args ...string) (string, error) {
-	return Exec(ctx, cmd, &ShellOptions{
+	return Exec(ctx, cmd, &Options{
 		Env:      env,
 		Capture:  true,
 		Combined: true,
@@ -124,7 +124,7 @@ func ShCombinedOut(ctx context.Context, env []string, cmd string, args ...string
 
 // Silent - run a command with env vars, no output printed
 func Silent(ctx context.Context, env []string, cmd string, args ...string) error {
-	_, err := Exec(ctx, cmd, &ShellOptions{
+	_, err := Exec(ctx, cmd, &Options{
 		Env:    env,
 		Silent: true,
 	})

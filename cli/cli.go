@@ -7,12 +7,12 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fyrna/fytask"
+	"github.com/fyrna/task"
 )
 
 type Options struct {
 	DefaultTask string
-	ShowListFn  func(r *fytask.Runner)
+	ShowListFn  func(r *task.Runner)
 	ErrorFn     func(err error)
 	Context     context.Context
 }
@@ -23,7 +23,7 @@ func DefaultTask(name string) Option {
 	return func(o *Options) { o.DefaultTask = name }
 }
 
-func ShowList(fn func(r *fytask.Runner)) Option {
+func ShowList(fn func(r *task.Runner)) Option {
 	return func(o *Options) { o.ShowListFn = fn }
 }
 
@@ -35,14 +35,14 @@ func Context(ctx context.Context) Option {
 	return func(o *Options) { o.Context = ctx }
 }
 
-func Run(r *fytask.Runner, opts ...Option) {
+func Run(r *task.Runner, opts ...Option) {
 	// defaults
 	o := &Options{
 		DefaultTask: "_",
-		ShowListFn: func(r *fytask.Runner) {
+		ShowListFn: func(r *task.Runner) {
 			tasks := r.ListTasks()
 
-			slices.SortFunc(tasks, func(a, b fytask.TaskInfo) int {
+			slices.SortFunc(tasks, func(a, b task.TaskInfo) int {
 				return strings.Compare(a.Name, b.Name)
 			})
 

@@ -1,4 +1,4 @@
-package fytask
+package task
 
 import (
 	"context"
