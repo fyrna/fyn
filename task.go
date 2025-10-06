@@ -34,9 +34,7 @@ func (e Errors) Error() string {
 	return sb.String()
 }
 
-func (e Errors) Unwrap() []error {
-	return []error(e)
-}
+func (e Errors) Unwrap() []error { return []error(e) }
 
 type TaskFn func(ctx context.Context) error
 
@@ -58,11 +56,11 @@ func New() *Runner {
 	}
 }
 
-func (r *Runner) Task(name string, fn TaskFn) {
-	r.AddTask(name, "", nil, fn)
+func (r *Runner) Unit(name string, fn TaskFn) {
+	r.AddUnit(name, "", nil, fn)
 }
 
-func (r *Runner) AddTask(name, desc string, deps []string, fn TaskFn) {
+func (r *Runner) AddUnit(name, desc string, deps []string, fn TaskFn) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -108,6 +106,10 @@ func (r *Runner) Run(ctx context.Context, name string) error {
 	task, ok := r.tasks[name]
 	r.mu.Unlock()
 
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	if !ok {
 		return fmt.Errorf("%w: '%s'", ErrTaskNotFound, name)
 	}
@@ -120,10 +122,6 @@ func (r *Runner) Run(ctx context.Context, name string) error {
 	}
 
 	return task.Func(ctx)
-}
-
-func (r *Runner) Rawr(name string) error {
-	return r.Run(context.Background(), name)
 }
 
 func (r *Runner) ListTasks() []TaskInfo {
@@ -160,7 +158,7 @@ func (r *Runner) detectCircular(current string, path []string) error {
 	return nil
 }
 
-func Series(r *Runner, tasks ...string) TaskFn {
+func (r *Runner) Series(tasks ...string) TaskFn {
 	return func(ctx context.Context) error {
 		for _, t := range tasks {
 			if err := r.Run(ctx, t); err != nil {
@@ -171,7 +169,7 @@ func Series(r *Runner, tasks ...string) TaskFn {
 	}
 }
 
-func Parallel(r *Runner, tasks ...string) TaskFn {
+func (r *Runner) Parallel(tasks ...string) TaskFn {
 	return func(ctx context.Context) error {
 		var wg sync.WaitGroup
 		var mu sync.Mutex

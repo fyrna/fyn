@@ -1,5 +1,8 @@
 # fyrna/task
 
+proudly say, this is part of my toolkit! the **FyrKits**, not a bad name huh!
+
+### real reason
 i want to build my own task runner, but i realize it fking hard and **WORTHLESS** to designing new domain spesific language JUST FOR **STUPID PROJECT**
 
 so, i think, can i create my own inside Go?

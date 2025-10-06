@@ -99,26 +99,9 @@ func ShEnv(ctx context.Context, env []string, command string) error {
 }
 
 // ShOut - convenience wrapper for a raw string command that returns output
-func ShOut(ctx context.Context, command string) (string, error) {
+func Output(ctx context.Context, command string) (string, error) {
 	return Exec(ctx, command, &Options{
 		Capture: true,
-	})
-}
-
-// ShOutEnv - convenience wrapper for a raw string command with env vars that returns output
-func ShOutEnv(ctx context.Context, env []string, command string) (string, error) {
-	return Exec(ctx, command, &Options{
-		Env:     env,
-		Capture: true,
-	})
-}
-
-// ShCombinedOut - run a command with env vars and return combined output (stdout + stderr)
-func ShCombinedOut(ctx context.Context, env []string, cmd string, args ...string) (string, error) {
-	return Exec(ctx, cmd, &Options{
-		Env:      env,
-		Capture:  true,
-		Combined: true,
 	})
 }
 

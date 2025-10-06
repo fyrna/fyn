@@ -1,5 +1,3 @@
-//go:build ignore
-
 package main
 
 import (
@@ -13,11 +11,11 @@ import (
 func main() {
 	t := task.New()
 
-	t.Task("echo", func(ctx context.Context) error {
+	t.Unit("echo", func(ctx context.Context) error {
 		return S.S(`echo "im cutee"`)
 	})
 
-	t.Task("setup-test", func(ctx context.Context) error {
+	t.Unit("setup-test", func(ctx context.Context) error {
 		return S.S(`echo "//go:build ignore
 	                package main
                         import \"fmt\"
@@ -27,7 +25,7 @@ func main() {
                         }" > myprogram.go`)
 	})
 
-	t.Task("fish", func(ctx context.Context) error {
+	t.Unit("fish", func(ctx context.Context) error {
 		S.Exec(ctx, `
 echo "Nyaa~ mulai testing :3"
 
@@ -74,12 +72,12 @@ echo "Testing selesai~ nyaaa~ ฅ^•ﻌ•^ฅ"
 		return nil
 	})
 
-	t.Task("cleanup", func(ctx context.Context) error {
+	t.Unit("cleanup", func(ctx context.Context) error {
 		return S.S("rm -rf myprogram myprogram.go")
 	})
 
-	t.Task("test:fish", task.Series(t, "setup-test", "fish", "cleanup"))
-	t.Task("test:all", task.Series(t, "echo", "test:fish"))
+	t.Unit("test:fish", t.Series("setup-test", "fish", "cleanup"))
+	t.Unit("test:all", t.Series("echo", "test:fish"))
 
 	cli.Run(t)
 }

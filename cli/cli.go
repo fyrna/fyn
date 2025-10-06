@@ -1,104 +1,82 @@
 package cli
 
 import (
-	"context"
+	"flag"
 	"fmt"
 	"os"
 	"slices"
 	"strings"
 
 	"github.com/fyrna/task"
+	"github.com/fyrna/x/color"
 )
 
-type Options struct {
-	DefaultTask string
-	ShowListFn  func(r *task.Runner)
-	ErrorFn     func(err error)
-	Context     context.Context
-}
+var (
+	showHelp = flag.Bool("help", false, "show help")
+	showList = flag.Bool("list", false, "list all tasks")
+)
 
-type Option func(*Options)
+func Run(t *task.Runner) {
+	flag.Parse()
 
-func DefaultTask(name string) Option {
-	return func(o *Options) { o.DefaultTask = name }
-}
-
-func ShowList(fn func(r *task.Runner)) Option {
-	return func(o *Options) { o.ShowListFn = fn }
-}
-
-func ErrorHandler(fn func(error)) Option {
-	return func(o *Options) { o.ErrorFn = fn }
-}
-
-func Context(ctx context.Context) Option {
-	return func(o *Options) { o.Context = ctx }
-}
-
-func PrintHelp() {
-	fmt.Println("task uwu runner :3")
-	fmt.Println()
-	fmt.Println("Options:")
-	fmt.Println("  -h, --help     Show this help message")
-	fmt.Println("  -l, --list     List all available tasks")
-	fmt.Println()
-	fmt.Println("if no task is specified, this help message will be shown.")
-}
-
-func Run(r *task.Runner, opts ...Option) {
-	// defaults
-	o := &Options{
-		DefaultTask: "_",
-		ShowListFn: func(r *task.Runner) {
-			tasks := r.ListTasks()
-			slices.SortFunc(tasks, func(a, b task.TaskInfo) int {
-				return strings.Compare(a.Name, b.Name)
-			})
-
-			fmt.Println("Available tasks:")
-			for _, t := range tasks {
-				if t.Name == "_" {
-					continue
-				}
-				desc := ""
-				if t.Desc != "" {
-					desc = t.Desc
-				}
-				fmt.Printf("  - %-15s %s\n", t.Name, desc)
-			}
-		},
-		ErrorFn: func(err error) {
-			fmt.Fprintln(os.Stderr, "Error:", err)
-			os.Exit(1)
-		},
-		Context: context.Background(),
-	}
-
-	for _, opt := range opts {
-		opt(o)
-	}
-
-	args := os.Args[1:]
-
-	if len(args) == 0 {
-		if err := r.Run(o.Context, o.DefaultTask); err != nil {
-			if o.DefaultTask == "_" {
-				PrintHelp()
-				return
-			}
-			o.ErrorFn(err)
-		}
+	args := flag.Args()
+	if len(args) == 0 && !*showList && !*showHelp {
+		fmt.Println(color.Wrap(color.BrightMagenta, "Task runner UwU 💕"))
+		fmt.Println("Use '--list' to see available tasks~ nya (ฅ^•ﻌ•^ฅ)")
+		fmt.Println("or use '--help' to print help message! nyan nyan!")
 		return
 	}
 
-	switch args[0] {
-	case "--list", "-l":
-		o.ShowListFn(r)
-	case "--help", "-h":
+	if *showHelp {
 		PrintHelp()
-	default:
-		if err := r.Run(o.Context, args[0]); err != nil {
-			o.ErrorFn(err)
+		return
+	}
+
+	if *showList {
+		PrintList(t)
+		return
+	}
+
+	taskName := args[0]
+
+	if err := t.Run(nil, taskName); err != nil {
+		fmt.Println(color.Wrap(color.Red, "Task failed nyaaa >w< 💥"))
+		fmt.Println("Error:", err)
+		os.Exit(1)
+	}
+
+	fmt.Println(color.Wrap(color.BrightCyan, "Task finished nyan~ 🎉"))
+}
+
+func PrintHelp() {
+	fmt.Println(color.Wrap(color.Bold, "Very Cute Task Runner 💕"))
+	fmt.Println()
+	fmt.Println("Usage:")
+	fmt.Println("  task [taskname]      Run a task")
+	fmt.Println("  task --list          List all tasks")
+	fmt.Println("  task --help          Show this help")
+	fmt.Println()
+}
+
+func PrintList(t *task.Runner) {
+	tasks := t.ListTasks()
+	if len(tasks) == 0 {
+		fmt.Println(color.Wrap(color.Faint, "No tasks registered nya~ (´･ω･`)"))
+		return
+	}
+
+	slices.SortFunc(tasks, func(a, b task.TaskInfo) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+
+	fmt.Println(color.Wrap(color.Bold, "Available tasks:"))
+	for _, t := range tasks {
+
+		var desc string
+		if t.Desc != "" {
+			desc = "- " + t.Desc
 		}
+		fmt.Printf("  %s%-15s%s %s\n",
+			color.BrightCyan, t.Name, color.Reset, desc)
 	}
 }
