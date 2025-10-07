@@ -3,20 +3,21 @@ package main
 import (
 	"context"
 
-	"github.com/fyrna/task"
-	"github.com/fyrna/task/cli"
-	S "github.com/fyrna/task/shell"
+	"github.com/fyrna/x/sh"
+
+	"github.com/fyrna/fn/cli"
+	"github.com/fyrna/fn/task"
 )
 
 func main() {
 	t := task.New()
 
 	t.Unit("echo", func(ctx context.Context) error {
-		return S.S(`echo "im cutee"`)
+		return sh.S(`echo "im cutee"`)
 	})
 
 	t.Unit("setup-test", func(ctx context.Context) error {
-		return S.S(`echo "//go:build ignore
+		return sh.S(`echo "//go:build ignore
 	                package main
                         import \"fmt\"
 
@@ -26,7 +27,9 @@ func main() {
 	})
 
 	t.Unit("fish", func(ctx context.Context) error {
-		S.Exec(ctx, `
+		sh.Exec(ctx, &sh.Options{
+			Shell: "fish",
+		}, `
 echo "Nyaa~ mulai testing :3"
 
 # Cek apakah Go terinstal
@@ -66,14 +69,13 @@ else
     echo "config.yaml tidak ada..."
 end
 
-echo "Testing selesai~ nyaaa~ ฅ^•ﻌ•^ฅ"
-`, &S.Options{Shell: "fish"})
+echo "Testing selesai~ nyaaa~ ฅ^•ﻌ•^ฅ"`)
 
 		return nil
 	})
 
 	t.Unit("cleanup", func(ctx context.Context) error {
-		return S.S("rm -rf myprogram myprogram.go")
+		return sh.S("rm -rf myprogram myprogram.go")
 	})
 
 	t.Unit("test:fish", t.Series("setup-test", "fish", "cleanup"))

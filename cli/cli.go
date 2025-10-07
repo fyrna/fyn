@@ -7,8 +7,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fyrna/task"
 	"github.com/fyrna/x/color"
+
+	"github.com/fyrna/fn/task"
 )
 
 var (
@@ -20,10 +21,13 @@ func Run(t *task.Runner) {
 	flag.Parse()
 
 	args := flag.Args()
+
 	if len(args) == 0 && !*showList && !*showHelp {
 		fmt.Println(color.Wrap(color.BrightMagenta, "Task runner UwU 💕"))
-		fmt.Println("Use '--list' to see available tasks~ nya (ฅ^•ﻌ•^ฅ)")
-		fmt.Println("or use '--help' to print help message! nyan nyan!")
+		fmt.Println("a simple way to declare task-thing!")
+		fmt.Println()
+		fmt.Println(color.Wrap(color.Faint, "Use '--list' to see available tasks~ nya (ฅ^•ﻌ•^ฅ)"))
+		fmt.Println(color.Wrap(color.Faint, "or use '--help' to print help message! nyan nyan!"))
 		return
 	}
 
@@ -60,6 +64,7 @@ func PrintHelp() {
 
 func PrintList(t *task.Runner) {
 	tasks := t.ListTasks()
+
 	if len(tasks) == 0 {
 		fmt.Println(color.Wrap(color.Faint, "No tasks registered nya~ (´･ω･`)"))
 		return

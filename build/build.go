@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	S "github.com/fyrna/task/shell"
+	"github.com/fyrna/x/sh"
 )
 
 // Valid GOOS/GOARCH combinations supported by Go toolchain
@@ -273,11 +273,11 @@ func Start(b *Build) error {
 		cmd := fmt.Sprintf("go %s", strings.Join(args, " "))
 
 		fmt.Printf("running %s\n\n", cmd)
-		_, err := S.Exec(context.Background(),
-			cmd,
-			&S.Options{
+		_, err := sh.Exec(context.Background(),
+			&sh.Options{
 				Env: b.buildEnv(t),
 			},
+			cmd,
 		)
 
 		if err != nil {

@@ -1,2 +1,4 @@
 github.com/fyrna/x/color v0.4.0 h1:6MXCBT+m1DpP0dAMFIErn4VAXm3St81x/O+uXXROS0Q=
 github.com/fyrna/x/color v0.4.0/go.mod h1:+baX61cVz3GRe9Xrl16jhYTPPUcUSj3/XRVbRi83csI=
+github.com/fyrna/x/sh v0.0.0-20251007004412-d3e8ba6f64b5 h1:o2hvDXVM0Nhqoc+1o0jnxf8FBfzXZYdrfjqRRsbzgoM=
+github.com/fyrna/x/sh v0.0.0-20251007004412-d3e8ba6f64b5/go.mod h1:pf8jwWIMI6nyX1DZJtiuP1G3yKOC8mFUJaNlU/T9OEk=
