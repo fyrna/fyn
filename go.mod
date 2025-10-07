@@ -1,4 +1,4 @@
-module github.com/fyrna/fn
+module github.com/fyrna/fyn
 
 go 1.25.0
 

@@ -5,8 +5,8 @@ import (
 
 	"github.com/fyrna/x/sh"
 
-	"github.com/fyrna/fn/cli"
-	"github.com/fyrna/fn/task"
+	"github.com/fyrna/fyn/task"
+	"github.com/fyrna/fyn/task/cli"
 )
 
 func main() {

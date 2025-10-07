@@ -9,7 +9,7 @@ import (
 
 	"github.com/fyrna/x/color"
 
-	"github.com/fyrna/fn/task"
+	"github.com/fyrna/fyn/task"
 )
 
 var (
