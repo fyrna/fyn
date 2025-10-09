@@ -1,3 +1,5 @@
+github.com/fyrna/paws v0.0.0-20251009092807-bdddac8126cb h1:8xSVp/KcmS4A3+wqcV8yt3Z+6dc+QNzfo4Tf1aiunUI=
+github.com/fyrna/paws v0.0.0-20251009092807-bdddac8126cb/go.mod h1:teEowmU3YbmSoLtMKFLA0TK2H06b95AMKKsW3sKDHWM=
 github.com/fyrna/x/color v0.4.0 h1:6MXCBT+m1DpP0dAMFIErn4VAXm3St81x/O+uXXROS0Q=
 github.com/fyrna/x/color v0.4.0/go.mod h1:+baX61cVz3GRe9Xrl16jhYTPPUcUSj3/XRVbRi83csI=
 github.com/fyrna/x/sh v0.0.0-20251007004412-d3e8ba6f64b5 h1:o2hvDXVM0Nhqoc+1o0jnxf8FBfzXZYdrfjqRRsbzgoM=
